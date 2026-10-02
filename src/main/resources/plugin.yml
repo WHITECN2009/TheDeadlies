@@ -1,0 +1,16 @@
+name: TheDeadlies
+description: TheDeadlies game plugin
+prefix: TheDeadlies
+version: '${version}'
+
+main: org.whitecn.net.theDeadlies.TheDeadlies
+api-version: '1.20'
+load: STARTUP
+
+authors: [ 凌星_WHITECN ]
+website: https://space.bilibili.com/598999070
+
+commands:
+  thedeadlies:
+    description: TheDeadlies game command
+    usage: /thedeadlies [invite...|joingame...|quitgame|startgame|endgame]
