@@ -2,11 +2,19 @@
 
 一个适用于 Minecraft 1.20.1 的赎罪之旅桌游插件。玩家通过聊天栏中的可点击组件出牌、选择目标并处理卡牌效果。
 
+**English version: [README_EN.md](README_EN.md)**
+
 ## 环境与安装
 
 - 服务端：Paper / Purpur 1.20.1
 - Java：17
 - 将 `build/libs/TheDeadlies-1.0.0-all.jar` 放入服务端的 `plugins` 文件夹，然后重启服务器。
+
+首次启动后，在 `plugins/TheDeadlies/config.yml` 中设置界面语言，并重启服务器生效：
+
+```yaml
+language: ZH_CN # 可选：ZH_CN（默认）或 EN
+```
 
 从源码构建：
 

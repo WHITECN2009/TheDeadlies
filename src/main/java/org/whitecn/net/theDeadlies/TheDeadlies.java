@@ -9,14 +9,17 @@ public final class TheDeadlies extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
-        this.getLogger().info("插件已启用");
+        saveDefaultConfig();
+        I18n.load(this);
+        this.getLogger().info(I18n.tr("插件已启用"));
         getServer().getPluginManager().registerEvents(this, this);
-        getCommand("thedeadlies").setExecutor(new TheDeadliesCommand(this));
-        getCommand("thedeadlies").setTabCompleter(new TheDeadliesCommand(this));
+        TheDeadliesCommand command = new TheDeadliesCommand(this);
+        getCommand("thedeadlies").setExecutor(command);
+        getCommand("thedeadlies").setTabCompleter(command);
     }
 
     @Override
     public void onDisable() {
-        this.getLogger().info("插件已禁用");
+        this.getLogger().info(I18n.tr("插件已禁用"));
     }
 }

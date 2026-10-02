@@ -6,5 +6,4 @@ enum CARD_TYPE {
 
 public class Vars {
     public final static String PREFIX = "§d§l[TheDeadlies]§r ";
-    public final static String COMMAND_USAGE = PREFIX + "§c用法: /thedeadlies [invite...|joingame...|quitgame|startgame|endgame]";
 }

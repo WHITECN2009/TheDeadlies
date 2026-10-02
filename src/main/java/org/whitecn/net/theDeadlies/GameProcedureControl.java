@@ -432,11 +432,12 @@ public class GameProcedureControl {
         String cardName = description.numbered
                 ? description.name + "-" + cardValue
                 : description.name;
+        cardName = I18n.tr(cardName);
         TextComponent card = new TextComponent("[" + cardName + "]");
         card.setColor(description.color);
         card.setHoverEvent(new HoverEvent(
                 HoverEvent.Action.SHOW_TEXT,
-                new ComponentBuilder(description.effect)
+                new ComponentBuilder(I18n.tr(description.effect))
                         .color(description.hoverColor)
                         .create()
         ));
@@ -519,10 +520,11 @@ public class GameProcedureControl {
     }
 
     private TextComponent message(String content) {
-        return new TextComponent(content);
+        return new TextComponent(I18n.tr(content));
     }
 
     private void broadcastText(TextComponent text) {
+        I18n.translate(text);
         for (UUID uuid : players) {
             Player player = Bukkit.getPlayer(uuid);
 
@@ -1204,14 +1206,15 @@ public class GameProcedureControl {
 
         TextComponent choices = message(PREFIX + "§e" + prompt + "： ");
         for (Map.Entry<String, String> option : options.entrySet()) {
-            TextComponent button = new TextComponent("§a[" + option.getValue() + "]");
+            String label = I18n.tr(option.getValue());
+            TextComponent button = new TextComponent("§a[" + label + "]");
             button.setClickEvent(new ClickEvent(
                     ClickEvent.Action.RUN_COMMAND,
                     "/thedeadlies choose " + option.getKey()
             ));
             button.setHoverEvent(new HoverEvent(
                     HoverEvent.Action.SHOW_TEXT,
-                    new ComponentBuilder(option.getValue())
+                    new ComponentBuilder(label)
                             .color(ChatColor.GREEN)
                             .create()
             ));

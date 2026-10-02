@@ -14,7 +14,6 @@ import org.bukkit.entity.Player;
 
 import java.util.*;
 
-import static org.whitecn.net.theDeadlies.Vars.COMMAND_USAGE;
 import static org.whitecn.net.theDeadlies.Vars.PREFIX;
 
 public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
@@ -30,11 +29,11 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(PREFIX + "§c该命令只能被玩家执行");
+            sendMessage(sender, PREFIX + "§c该命令只能被玩家执行");
             return true;
         }
         if (args.length == 0 || args[0].equalsIgnoreCase("gpc")) {
-            player.sendMessage(COMMAND_USAGE);
+            sendMessage(player, I18n.commandUsage());
             return true;
         }
         if (args.length >= 2 && args[0].equalsIgnoreCase("invite")) {
@@ -42,33 +41,33 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             if (inviterRoom != null
                     && (inviterRoom.started
                     || !inviterRoom.owner.equals(player.getUniqueId()))) {
-                player.sendMessage(PREFIX + "§c你当前不能发起房间邀请");
+                sendMessage(player, PREFIX + "§c你当前不能发起房间邀请");
                 return true;
             }
             Set<UUID> invitedPlayers = new HashSet<>();
             for (int i = 1; i < args.length; i++) {
                 Player target = Bukkit.getPlayer(args[i]);
                 if (target == null || !target.isOnline()) {
-                    player.sendMessage(PREFIX + "§c找不到在线玩家：§f" + args[i]);
+                    sendMessage(player, PREFIX + "§c找不到在线玩家：§f" + args[i]);
                     return true;
                 }
                 if (target.getUniqueId().equals(player.getUniqueId())) {
-                    player.sendMessage(PREFIX + "§c你不能邀请自己");
+                    sendMessage(player, PREFIX + "§c你不能邀请自己");
                     return true;
                 }
                 if (isInGameRoom(target.getUniqueId())) {
-                    player.sendMessage(PREFIX + "§c玩家 §f" + target.getName()
+                    sendMessage(player, PREFIX + "§c玩家 §f" + target.getName()
                             + " §c已经在游戏房间中，不能邀请");
                     return true;
                 }
                 if (!invitedPlayers.add(target.getUniqueId())) {
-                    player.sendMessage(PREFIX + "§e玩家 §f"
+                    sendMessage(player, PREFIX + "§e玩家 §f"
                             + target.getName()
                             + " §e已经在邀请列表中");
                 }
             }
             if (invitedPlayers.isEmpty()) {
-                player.sendMessage(PREFIX + "§c没有有效的受邀玩家");
+                sendMessage(player, PREFIX + "§c没有有效的受邀玩家");
                 return true;
             }
             InviteRequest request = new InviteRequest(player.getUniqueId(), invitedPlayers);
@@ -98,39 +97,40 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                     }
                 }
                 message.addExtra("\n               ");
-                TextComponent agree = new TextComponent("§a[同意]");
+                TextComponent agree = new TextComponent(I18n.tr("§a[同意]"));
                 agree.setClickEvent(new ClickEvent(
                         ClickEvent.Action.RUN_COMMAND,
                         "/thedeadlies invite-accept " + inviteId
                 ));
                 agree.setHoverEvent(new HoverEvent(
                         HoverEvent.Action.SHOW_TEXT,
-                        new ComponentBuilder("点击同意邀请")
+                        new ComponentBuilder(I18n.tr("点击同意邀请"))
                                 .color(ChatColor.GREEN)
                                 .create()
                 ));
-                TextComponent disagree = new TextComponent("§c[拒绝]");
+                TextComponent disagree = new TextComponent(I18n.tr("§c[拒绝]"));
                 disagree.setClickEvent(new ClickEvent(
                         ClickEvent.Action.RUN_COMMAND,
                         "/thedeadlies invite-deny " + inviteId
                 ));
                 disagree.setHoverEvent(new HoverEvent(
                         HoverEvent.Action.SHOW_TEXT,
-                        new ComponentBuilder("点击拒绝邀请")
+                        new ComponentBuilder(I18n.tr("点击拒绝邀请"))
                                 .color(ChatColor.RED)
                                 .create()
                 ));
                 message.addExtra(agree);
                 message.addExtra("    ");
                 message.addExtra(disagree);
+                I18n.translate(message);
                 target.spigot().sendMessage(message);
             }
             if (request.pendingPlayers.isEmpty()) {
                 invites.remove(inviteId);
-                player.sendMessage(PREFIX + "§c没有可用的受邀玩家");
+                sendMessage(player, PREFIX + "§c没有可用的受邀玩家");
                 return true;
             }
-            player.sendMessage(PREFIX + "§a邀请已发送，等待受邀玩家确认");
+            sendMessage(player, PREFIX + "§a邀请已发送，等待受邀玩家确认");
             Bukkit.getScheduler().runTaskLater(
                     plugin,
                     () -> {
@@ -141,11 +141,11 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                         Player inviterPlayer = Bukkit.getPlayer(current.inviter);
                         if (!current.pendingPlayers.isEmpty()) {
                             if (inviterPlayer != null && inviterPlayer.isOnline()) {
-                                inviterPlayer.sendMessage(PREFIX + "§e以下玩家在15秒内没有回应 " + "邀请已自动拒绝：");
+                                sendMessage(inviterPlayer, PREFIX + "§e以下玩家在15秒内没有回应 " + "邀请已自动拒绝：");
                                 for (UUID uuid : current.pendingPlayers) {
                                     Player pending = Bukkit.getPlayer(uuid);
                                     if (pending != null) {
-                                        inviterPlayer.sendMessage(PREFIX + "§7- §f" + pending.getName());
+                                        sendMessage(inviterPlayer, PREFIX + "§7- §f" + pending.getName());
                                     }
                                 }
                             }
@@ -153,13 +153,13 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                             for (UUID uuid : current.pendingPlayers) {
                                 Player pending = Bukkit.getPlayer(uuid);
                                 if (pending != null && pending.isOnline()) {
-                                    pending.sendMessage(PREFIX + "§c邀请已超时 " + "系统自动拒绝了本次邀请");
+                                    sendMessage(pending, PREFIX + "§c邀请已超时 " + "系统自动拒绝了本次邀请");
                                 }
                             }
                             completeInviteRequest(inviteId, current);
                         } else {
                             if (inviterPlayer != null && inviterPlayer.isOnline()) {
-                                inviterPlayer.sendMessage(PREFIX + "§a所有玩家都已经处理了邀请");
+                                sendMessage(inviterPlayer, PREFIX + "§a所有玩家都已经处理了邀请");
                             }
                             completeInviteRequest(inviteId, current);
                         }
@@ -173,28 +173,28 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             try {
                 inviteId = UUID.fromString(args[1]);
             } catch (IllegalArgumentException e) {
-                player.sendMessage(PREFIX + "§c无效的邀请");
+                sendMessage(player, PREFIX + "§c无效的邀请");
                 return true;
             }
             InviteRequest request = invites.get(inviteId);
             if (request == null) {
-                player.sendMessage(PREFIX + "§c该邀请已经过期");
+                sendMessage(player, PREFIX + "§c该邀请已经过期");
                 return true;
             }
             UUID uuid = player.getUniqueId();
             if (uuid.equals(request.inviter)) {
-                player.sendMessage(PREFIX + "§c你是这次邀请的发起者");
+                sendMessage(player, PREFIX + "§c你是这次邀请的发起者");
                 return true;
             }
             Player inviter = Bukkit.getPlayer(request.inviter);
             if (!request.pendingPlayers.remove(uuid)) {
-                player.sendMessage(PREFIX + "§c你已经处理过这个邀请了");
+                sendMessage(player, PREFIX + "§c你已经处理过这个邀请了");
                 return true;
             }
             if (isInGameRoom(uuid)) {
-                player.sendMessage(PREFIX + "§c你已经加入了其他游戏房间");
+                sendMessage(player, PREFIX + "§c你已经加入了其他游戏房间");
                 if (inviter != null && inviter.isOnline()) {
-                    inviter.sendMessage(PREFIX + "§c玩家 §f" + player.getName()
+                    sendMessage(inviter, PREFIX + "§c玩家 §f" + player.getName()
                             + " §c已加入其他房间，无法加入本局");
                 }
                 if (request.pendingPlayers.isEmpty()) {
@@ -203,9 +203,9 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
             request.acceptedPlayers.add(uuid);
-            player.sendMessage(PREFIX + "§a你同意了游戏邀请");
+            sendMessage(player, PREFIX + "§a你同意了游戏邀请");
             if (inviter != null && inviter.isOnline()) {
-                inviter.sendMessage(PREFIX + "§a玩家 §f" + player.getName() + " §a同意了你的游戏邀请");
+                sendMessage(inviter, PREFIX + "§a玩家 §f" + player.getName() + " §a同意了你的游戏邀请");
             }
             if (request.pendingPlayers.isEmpty()) {
                 completeInviteRequest(inviteId, request);
@@ -218,27 +218,27 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             try {
                 inviteId = UUID.fromString(args[1]);
             } catch (IllegalArgumentException e) {
-                player.sendMessage(PREFIX + "§c无效的邀请");
+                sendMessage(player, PREFIX + "§c无效的邀请");
                 return true;
             }
             InviteRequest request = invites.get(inviteId);
             if (request == null) {
-                player.sendMessage(PREFIX + "§c该邀请已经过期");
+                sendMessage(player, PREFIX + "§c该邀请已经过期");
                 return true;
             }
             UUID uuid = player.getUniqueId();
             if (uuid.equals(request.inviter)) {
-                player.sendMessage(PREFIX + "§c你是这次邀请的发起者");
+                sendMessage(player, PREFIX + "§c你是这次邀请的发起者");
                 return true;
             }
             if (!request.pendingPlayers.remove(uuid)) {
-                player.sendMessage(PREFIX + "§c你已经处理过这个邀请了");
+                sendMessage(player, PREFIX + "§c你已经处理过这个邀请了");
                 return true;
             }
-            player.sendMessage(PREFIX + "§c你拒绝了游戏邀请");
+            sendMessage(player, PREFIX + "§c你拒绝了游戏邀请");
             Player inviter = Bukkit.getPlayer(request.inviter);
             if (inviter != null && inviter.isOnline()) {
-                inviter.sendMessage(PREFIX + "§c玩家 §f" + player.getName() + " §c拒绝了你的游戏邀请");
+                sendMessage(inviter, PREFIX + "§c玩家 §f" + player.getName() + " §c拒绝了你的游戏邀请");
             }
             if (request.pendingPlayers.isEmpty()) {
                 completeInviteRequest(inviteId, request);
@@ -249,24 +249,24 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         if (args.length == 2 && args[0].equalsIgnoreCase("joingame")) {
             Player target = Bukkit.getPlayerExact(args[1]);
             if (target == null) {
-                player.sendMessage(PREFIX + "§c找不到玩家：§f" + args[1]);
+                sendMessage(player, PREFIX + "§c找不到玩家：§f" + args[1]);
                 return true;
             }
             GameRoom room = gameRooms.get(target.getUniqueId());
             if (room == null || !room.valid) {
-                player.sendMessage(PREFIX + "§c该玩家没有有效的游戏房间");
+                sendMessage(player, PREFIX + "§c该玩家没有有效的游戏房间");
                 return true;
             }
             if (room.players.contains(player.getUniqueId())) {
-                player.sendMessage(PREFIX + "§e你已经在这个游戏房间中");
+                sendMessage(player, PREFIX + "§e你已经在这个游戏房间中");
                 return true;
             }
             if (isInGameRoom(player.getUniqueId())) {
-                player.sendMessage(PREFIX + "§c你已经在其他游戏房间中");
+                sendMessage(player, PREFIX + "§c你已经在其他游戏房间中");
                 return true;
             }
             if (room.started) {
-                player.sendMessage(PREFIX + "§c该游戏已经开始，无法申请加入");
+                sendMessage(player, PREFIX + "§c该游戏已经开始，无法申请加入");
                 return true;
             }
             UUID requestId = UUID.randomUUID();
@@ -279,33 +279,34 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             TextComponent message = new TextComponent();
             message.addExtra(PREFIX + "§b玩家§a " + player.getName() + " §b申请加入你的赎罪之旅游戏\n");
             message.addExtra(PREFIX + "§b有效期：§f15秒\n               ");
-            TextComponent agree = new TextComponent("§a[同意]");
+            TextComponent agree = new TextComponent(I18n.tr("§a[同意]"));
             agree.setClickEvent(new ClickEvent(
                     ClickEvent.Action.RUN_COMMAND,
                     "/thedeadlies joingame-accept " + requestId
             ));
             agree.setHoverEvent(new HoverEvent(
                     HoverEvent.Action.SHOW_TEXT,
-                    new ComponentBuilder("点击允许玩家加入")
+                    new ComponentBuilder(I18n.tr("点击允许玩家加入"))
                             .color(ChatColor.GREEN)
                             .create()
             ));
-            TextComponent disagree = new TextComponent("§c[拒绝]");
+            TextComponent disagree = new TextComponent(I18n.tr("§c[拒绝]"));
             disagree.setClickEvent(new ClickEvent(
                     ClickEvent.Action.RUN_COMMAND,
                     "/thedeadlies joingame-deny " + requestId
             ));
             disagree.setHoverEvent(new HoverEvent(
                     HoverEvent.Action.SHOW_TEXT,
-                    new ComponentBuilder("点击拒绝玩家加入")
+                    new ComponentBuilder(I18n.tr("点击拒绝玩家加入"))
                             .color(ChatColor.RED)
                             .create()
             ));
             message.addExtra(agree);
             message.addExtra("    ");
             message.addExtra(disagree);
+            I18n.translate(message);
             target.spigot().sendMessage(message);
-            player.sendMessage(PREFIX + "§a已向 §f" + target.getName() + " §a发送加入申请");
+            sendMessage(player, PREFIX + "§a已向 §f" + target.getName() + " §a发送加入申请");
             Bukkit.getScheduler().runTaskLater(
                     plugin,
                     () -> {
@@ -315,7 +316,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                         }
                         Player applicant = Bukkit.getPlayer(current.applicant);
                         if (applicant != null && applicant.isOnline()) {
-                            applicant.sendMessage(PREFIX + "§c加入申请已超时");
+                            sendMessage(applicant, PREFIX + "§c加入申请已超时");
                         }
                     },
                     20L * 15);
@@ -327,40 +328,40 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             try {
                 requestId = UUID.fromString(args[1]);
             } catch (IllegalArgumentException e) {
-                player.sendMessage(PREFIX + "§c无效的加入申请");
+                sendMessage(player, PREFIX + "§c无效的加入申请");
                 return true;
             }
             JoinRequest request = joinRequests.remove(requestId);
             if (request == null) {
-                player.sendMessage(PREFIX + "§c该加入申请已经过期");
+                sendMessage(player, PREFIX + "§c该加入申请已经过期");
                 return true;
             }
             if (!request.owner.equals(player.getUniqueId())) {
-                player.sendMessage(PREFIX + "§c你不是该游戏房间的房主");
+                sendMessage(player, PREFIX + "§c你不是该游戏房间的房主");
                 return true;
             }
             GameRoom room = gameRooms.get(player.getUniqueId());
             if (room == null || !room.valid) {
-                player.sendMessage(PREFIX + "§c你的游戏房间已经无效");
+                sendMessage(player, PREFIX + "§c你的游戏房间已经无效");
                 return true;
             }
             if (room.started) {
-                player.sendMessage(PREFIX + "§c游戏已经开始，无法加入");
+                sendMessage(player, PREFIX + "§c游戏已经开始，无法加入");
                 return true;
             }
             Player applicant = Bukkit.getPlayer(request.applicant);
             if (applicant == null || !applicant.isOnline()) {
-                player.sendMessage(PREFIX + "§c申请玩家已经离线");
+                sendMessage(player, PREFIX + "§c申请玩家已经离线");
                 return true;
             }
             if (isInGameRoom(applicant.getUniqueId())) {
-                applicant.sendMessage(PREFIX + "§c你已经在其他游戏房间中");
+                sendMessage(applicant, PREFIX + "§c你已经在其他游戏房间中");
                 return true;
             }
             room.players.add(applicant.getUniqueId());
-            player.sendMessage(PREFIX + "§a已同意玩家 §f" + applicant.getName() + " §a加入游戏房间"
+            sendMessage(player, PREFIX + "§a已同意玩家 §f" + applicant.getName() + " §a加入游戏房间"
             );
-            applicant.sendMessage(PREFIX + "§a房主 §f" + player.getName() + " §a同意了你的加入申请");
+            sendMessage(applicant, PREFIX + "§a房主 §f" + player.getName() + " §a同意了你的加入申请");
             return true;
         }
 
@@ -369,22 +370,22 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             try {
                 requestId = UUID.fromString(args[1]);
             } catch (IllegalArgumentException e) {
-                player.sendMessage(PREFIX + "§c无效的加入申请");
+                sendMessage(player, PREFIX + "§c无效的加入申请");
                 return true;
             }
             JoinRequest request = joinRequests.remove(requestId);
             if (request == null) {
-                player.sendMessage(PREFIX + "§c该加入申请已经过期");
+                sendMessage(player, PREFIX + "§c该加入申请已经过期");
                 return true;
             }
             if (!request.owner.equals(player.getUniqueId())) {
-                player.sendMessage(PREFIX + "§c你不是该游戏房间的房主");
+                sendMessage(player, PREFIX + "§c你不是该游戏房间的房主");
                 return true;
             }
             Player applicant = Bukkit.getPlayer(request.applicant);
-            player.sendMessage(PREFIX + "§c你拒绝了加入申请");
+            sendMessage(player, PREFIX + "§c你拒绝了加入申请");
             if (applicant != null && applicant.isOnline()) {
-                applicant.sendMessage(PREFIX + "§c房主 §f" + player.getName() + " §c拒绝了你的加入申请");
+                sendMessage(applicant, PREFIX + "§c房主 §f" + player.getName() + " §c拒绝了你的加入申请");
             }
             return true;
         }
@@ -403,14 +404,14 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                     player.getUniqueId(),
                     args[1]
             )) {
-                player.sendMessage(PREFIX + "§c当前没有等待你处理的游戏选择");
+                sendMessage(player, PREFIX + "§c当前没有等待你处理的游戏选择");
             }
             return true;
         }
         if (args.length >= 2 && args[0].equalsIgnoreCase("play")) {
             GameRoom room = getPlayerGameRoom(player.getUniqueId());
             if (room == null || room.getProcedure() == null) {
-                player.sendMessage(PREFIX + "§c你当前没有正在进行的游戏");
+                sendMessage(player, PREFIX + "§c你当前没有正在进行的游戏");
                 return true;
             }
             try {
@@ -437,10 +438,10 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                         target,
                         corruptionSuit
                 )) {
-                    player.sendMessage(PREFIX + "§c出牌不合法，或当前不能出牌");
+                    sendMessage(player, PREFIX + "§c出牌不合法，或当前不能出牌");
                 }
             } catch (IllegalArgumentException exception) {
-                player.sendMessage(PREFIX
+                sendMessage(player, PREFIX
                         + "§c用法：/thedeadlies play 花色:位置[,花色:位置] [目标UUID] [腐化花色]");
             }
             return true;
@@ -450,7 +451,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        player.sendMessage(PREFIX + "§c未知的子命令");
+        sendMessage(player, PREFIX + "§c未知的子命令");
         return true;
     }
 
@@ -458,7 +459,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         if (gameRooms.containsKey(owner)) {
             Player player = Bukkit.getPlayer(owner);
             if (player != null && player.isOnline()) {
-                player.sendMessage(PREFIX + "§e你已经有一个有效的游戏房间");
+                sendMessage(player, PREFIX + "§e你已经有一个有效的游戏房间");
             }
 
             return;
@@ -469,12 +470,12 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         gameRooms.put(owner, room);
         Player ownerPlayer = Bukkit.getPlayer(owner);
         if (ownerPlayer != null && ownerPlayer.isOnline()) {
-            ownerPlayer.sendMessage(PREFIX + "§a游戏房间创建成功");
+            sendMessage(ownerPlayer, PREFIX + "§a游戏房间创建成功");
         }
         for (UUID uuid : room.players) {
             Player player = Bukkit.getPlayer(uuid);
             if (player != null && player.isOnline()) {
-                player.sendMessage(PREFIX + "§a你已经加入赎罪之旅游戏房间");
+                sendMessage(player, PREFIX + "§a你已经加入赎罪之旅游戏房间");
             }
         }
     }
@@ -484,7 +485,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         Player inviter = Bukkit.getPlayer(request.inviter);
         if (request.acceptedPlayers.isEmpty()) {
             if (inviter != null && inviter.isOnline()) {
-                inviter.sendMessage(PREFIX + "§e没有玩家接受本次邀请");
+                sendMessage(inviter, PREFIX + "§e没有玩家接受本次邀请");
             }
             return;
         }
@@ -494,7 +495,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                 && (inviterRoom.started
                 || !inviterRoom.owner.equals(request.inviter))) {
             if (inviter != null && inviter.isOnline()) {
-                inviter.sendMessage(PREFIX + "§c你已加入其他房间或当前游戏已经开始，"
+                sendMessage(inviter, PREFIX + "§c你已加入其他房间或当前游戏已经开始，"
                         + "无法完成邀请");
             }
             return;
@@ -507,12 +508,12 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                     existingRoom.players.add(accepted);
                     Player member = Bukkit.getPlayer(accepted);
                     if (member != null && member.isOnline()) {
-                        member.sendMessage(PREFIX + "§a你已加入赎罪之旅游戏房间");
+                        sendMessage(member, PREFIX + "§a你已加入赎罪之旅游戏房间");
                     }
                 }
             }
             if (inviter != null && inviter.isOnline()) {
-                inviter.sendMessage(PREFIX + "§a已将接受邀请的玩家加入你的游戏房间");
+                sendMessage(inviter, PREFIX + "§a已将接受邀请的玩家加入你的游戏房间");
             }
             return;
         }
@@ -523,15 +524,15 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
     private void quitGame(Player player) {
         GameRoom room = getPlayerGameRoom(player.getUniqueId());
         if (room == null) {
-            player.sendMessage(PREFIX + "§c你当前没有加入任何游戏房间");
+            sendMessage(player, PREFIX + "§c你当前没有加入任何游戏房间");
             return;
         }
         if (!room.started) {
             room.players.remove(player.getUniqueId());
-            player.sendMessage(PREFIX + "§a你已退出游戏房间");
+            sendMessage(player, PREFIX + "§a你已退出游戏房间");
             Player owner = Bukkit.getPlayer(room.owner);
             if (owner != null && owner.isOnline() && !room.owner.equals(player.getUniqueId())) {
-                owner.sendMessage(PREFIX + "§e玩家 §f" + player.getName() + " §e退出了游戏房间");
+                sendMessage(owner, PREFIX + "§e玩家 §f" + player.getName() + " §e退出了游戏房间");
             }
 
             if (room.owner.equals(player.getUniqueId())) {
@@ -540,7 +541,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                 for (UUID uuid : room.players) {
                     Player member = Bukkit.getPlayer(uuid);
                     if (member != null && member.isOnline()) {
-                        member.sendMessage(PREFIX + "§c房主退出了房间，游戏房间已解散");
+                        sendMessage(member, PREFIX + "§c房主退出了房间，游戏房间已解散");
                     }
                 }
                 room.players.clear();
@@ -559,11 +560,11 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         }
 
         room.players.remove(player.getUniqueId());
-        player.sendMessage(PREFIX + "§e你已退出游戏，同时退出了游戏房间");
+        sendMessage(player, PREFIX + "§e你已退出游戏，同时退出了游戏房间");
         for (UUID uuid : room.players) {
             Player member = Bukkit.getPlayer(uuid);
             if (member != null && member.isOnline()) {
-                member.sendMessage(PREFIX + "§e玩家 §f" + player.getName() + " §e已退出游戏");
+                sendMessage(member, PREFIX + "§e玩家 §f" + player.getName() + " §e已退出游戏");
             }
         }
 
@@ -576,17 +577,17 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
     private void endGame(Player player) {
         GameRoom room = getPlayerGameRoom(player.getUniqueId());
         if (room == null || !room.started || room.procedure == null) {
-            player.sendMessage(PREFIX + "§c你当前没有正在进行的游戏");
+            sendMessage(player, PREFIX + "§c你当前没有正在进行的游戏");
             return;
         }
 
         room.procedure.finishGame();
-        player.sendMessage(PREFIX + "§a本局游戏已结束，房间仍然保留");
+        sendMessage(player, PREFIX + "§a本局游戏已结束，房间仍然保留");
         for (UUID uuid : room.players) {
             Player member = Bukkit.getPlayer(uuid);
             if (member != null && member.isOnline()
                     && !uuid.equals(player.getUniqueId())) {
-                member.sendMessage(PREFIX + "§c本局游戏已被 " + player.getName()
+                sendMessage(member, PREFIX + "§c本局游戏已被 " + player.getName()
                         + " §c结束，房间仍然保留");
             }
         }
@@ -601,7 +602,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         for (UUID uuid : new HashSet<>(room.players)) {
             Player member = Bukkit.getPlayer(uuid);
             if (member != null && member.isOnline()) {
-                member.sendMessage(PREFIX + "§c" + reason);
+                sendMessage(member, PREFIX + "§c" + reason);
             }
         }
 
@@ -617,7 +618,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         if (room.players.size() < 2) {
             Player player = Bukkit.getPlayer(owner);
             if (player != null && player.isOnline()) {
-                player.sendMessage(PREFIX + "§c至少需要两名玩家才能开始游戏");
+                sendMessage(player, PREFIX + "§c至少需要两名玩家才能开始游戏");
             }
             return;
         }
@@ -626,7 +627,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             if (member == null || !member.isOnline()) {
                 Player player = Bukkit.getPlayer(owner);
                 if (player != null && player.isOnline()) {
-                    player.sendMessage(PREFIX + "§c有房间成员已经离线，无法开始游戏");
+                    sendMessage(player, PREFIX + "§c有房间成员已经离线，无法开始游戏");
                 }
                 return;
             }
@@ -641,7 +642,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         for (UUID uuid : room.players) {
             Player player = Bukkit.getPlayer(uuid);
             if (player != null && player.isOnline()) {
-                player.sendMessage(PREFIX + "§a游戏开始，本局玩家：§e" + names);
+                sendMessage(player, PREFIX + "§a游戏开始，本局玩家：§e" + names);
             }
         }
         try {
@@ -650,7 +651,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             room.resetAfterGame();
             Player player = Bukkit.getPlayer(owner);
             if (player != null && player.isOnline()) {
-                player.sendMessage(PREFIX + "§c无法启动游戏：" + exception.getMessage());
+                sendMessage(player, PREFIX + "§c无法启动游戏：" + exception.getMessage());
             }
         }
     }
@@ -666,6 +667,10 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             }
         }
         return null;
+    }
+
+    private void sendMessage(CommandSender recipient, String message) {
+        recipient.sendMessage(I18n.tr(message));
     }
 
     private static class InviteRequest {
