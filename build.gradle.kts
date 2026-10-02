@@ -10,6 +10,7 @@ repositories {
 
 dependencies {
     compileOnly("org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT")
+    implementation("org.bstats:bstats-bukkit:3.2.1")
 }
 
 java {
@@ -26,5 +27,9 @@ tasks {
         filesMatching("plugin.yml") {
             expand(props)
         }
+    }
+
+    shadowJar {
+        relocate("org.bstats", project.group.toString())
     }
 }
