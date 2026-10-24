@@ -30,6 +30,12 @@ tasks {
     }
 
     shadowJar {
+        configurations = project.configurations.runtimeClasspath.map { setOf(it) }
+
+        dependencies {
+            include { it.moduleGroup == "org.bstats" }
+        }
+
         relocate("org.bstats", project.group.toString())
     }
 }

@@ -1,2 +1,8 @@
-# Supported values: ZH_CN, EN
+#For English annotation please check here
+#
+
+# 支持的语言: ZH_CN, EN
 language: ZH_CN
+
+#邀请超时时间 (默认值:15)
+invite_timeout_time: 15

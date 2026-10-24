@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -27,6 +28,7 @@ public class GameProcedureControl {
     private static final long JUDGMENT_DELAY_TICKS = 40L;
     private static final int MAX_SIN_LEVEL = 6;
     private static final int HAND_SIZE = 6;
+    private static final int CARD_GROUP_COUNT = 10;
 
     /*
      * 玩家 UUID -> 玩家手牌
@@ -52,13 +54,13 @@ public class GameProcedureControl {
      * 每个内部 ArrayList 代表一个牌组
      */
     private final ArrayList<ArrayList<Integer>> cardPile =
-            new ArrayList<>(9);
+            new ArrayList<>(CARD_GROUP_COUNT);
 
     /*
      * 弃牌堆
      */
     private final ArrayList<ArrayList<Integer>> discardPile =
-            new ArrayList<>(9);
+            new ArrayList<>(CARD_GROUP_COUNT);
 
     /*
      * 本局玩家 使用副本 避免游戏开始后外部继续修改玩家列表
@@ -79,6 +81,7 @@ public class GameProcedureControl {
     private boolean haloPublic = true;
     private final Map<UUID, PendingChoice> pendingChoices = new HashMap<>();
     private final Map<UUID, List<Integer>> lazinessInFront = new HashMap<>();
+    private final Map<UUID, Set<CardSelection>> selectedHandCards = new HashMap<>();
     private final Runnable onGameFinished;
     private boolean finishNotified;
     private boolean resolvingEffect;
@@ -128,9 +131,6 @@ public class GameProcedureControl {
         }
     }
 
-    private record CardLocation(int suitIndex, int cardIndex) {
-    }
-
     /**
      * 初始化玩家手牌
      */
@@ -142,9 +142,9 @@ public class GameProcedureControl {
      * 创建九组空牌
      */
     private ArrayList<ArrayList<Integer>> createEmptyCardGroups() {
-        ArrayList<ArrayList<Integer>> cardGroups = new ArrayList<>(9);
+        ArrayList<ArrayList<Integer>> cardGroups = new ArrayList<>(CARD_GROUP_COUNT);
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < CARD_GROUP_COUNT; i++) {
             cardGroups.add(new ArrayList<>());
         }
 
@@ -255,28 +255,27 @@ public class GameProcedureControl {
             }
         }
 
-        ArrayList<CardLocation> availableCards = new ArrayList<>();
-        for (int suitIndex = 0; suitIndex < cardPile.size(); suitIndex++) {
-            for (int cardIndex = 0; cardIndex < cardPile.get(suitIndex).size(); cardIndex++) {
-                availableCards.add(new CardLocation(suitIndex, cardIndex));
-            }
-        }
-
-        CardLocation selected = availableCards.get(
-                random.nextInt(availableCards.size())
-        );
-        Integer card = cardPile.get(selected.suitIndex()).remove(
-                selected.cardIndex()
-        );
-
-        playerHand.get(selected.suitIndex()).add(card);
+        int selectedIndex = random.nextInt(getCardPileSize());
+        DrawnCard drawnCard = removeCardAt(selectedIndex);
+        playerHand.get(drawnCard.suitIndex()).add(drawnCard.value());
         if (phase == GamePhase.PLAYER_TURN) {
             announceCardDrawn(uuid);
         }
-        return new DrawnCard(selected.suitIndex(), card);
+        return drawnCard;
     }
 
     private record DrawnCard(int suitIndex, int value) {
+    }
+
+    private DrawnCard removeCardAt(int index) {
+        for (int suitIndex = 0; suitIndex < cardPile.size(); suitIndex++) {
+            List<Integer> suit = cardPile.get(suitIndex);
+            if (index < suit.size()) {
+                return new DrawnCard(suitIndex, suit.remove(index));
+            }
+            index -= suit.size();
+        }
+        throw new IndexOutOfBoundsException("Card index exceeds the pile size");
     }
 
     private record IssuedCard(UUID recipient, int suitIndex, int value) {
@@ -286,18 +285,16 @@ public class GameProcedureControl {
      * 获取牌堆剩余牌数量
      */
     private int getCardPileSize() {
-        int size = 0;
-
-        for (ArrayList<Integer> suit : cardPile) {
-            size += suit.size();
-        }
-
-        return size;
+        return getPileSize(cardPile);
     }
 
     private int getDiscardPileSize() {
+        return getPileSize(discardPile);
+    }
+
+    private int getPileSize(List<? extends List<Integer>> pile) {
         int size = 0;
-        for (List<Integer> suit : discardPile) {
+        for (List<Integer> suit : pile) {
             size += suit.size();
         }
         return size;
@@ -325,6 +322,7 @@ public class GameProcedureControl {
     }
 
     private void advanceTurn(UUID uuid) {
+        selectedHandCards.clear();
         currentPlayerIndex =
                 (currentPlayerIndex + 1) % turnOrder.size();
 
@@ -400,19 +398,68 @@ public class GameProcedureControl {
         if (player == null || !player.isOnline() || hand == null) {
             return;
         }
+        Set<CardSelection> selectedCards = selectedHandCards.getOrDefault(uuid, Set.of());
         TextComponent text = message(PREFIX + I18n.get(Messages.HAND_CLICK_CARD));
         for (int suit = 0; suit < hand.size(); suit++) {
             for (int index = 0; index < hand.get(suit).size(); index++) {
                 TextComponent card = cardComponent(suit, hand.get(suit).get(index));
+                if (selectedCards.contains(new CardSelection(suit, index))) {
+                    card.setColor(ChatColor.YELLOW);
+                }
                 card.setClickEvent(new ClickEvent(
                         ClickEvent.Action.RUN_COMMAND,
-                        "/thedeadlies play " + suit + ":" + index
+                        "/thedeadlies select " + suit + ":" + index
                 ));
                 text.addExtra(card);
                 text.addExtra(" ");
             }
         }
         player.spigot().sendMessage(text);
+        if (!selectedCards.isEmpty()) {
+            String selectionStatus = isValidSelection(uuid, new ArrayList<>(selectedCards))
+                    ? I18n.get(Messages.HAND_SELECTION_VALID)
+                    : I18n.get(Messages.HAND_SELECTION_INVALID);
+            TextComponent controls = message(PREFIX + selectionStatus + " ");
+            TextComponent play = new TextComponent(I18n.get(Messages.HAND_PLAY_SELECTED));
+            play.setColor(ChatColor.GREEN);
+            play.setClickEvent(new ClickEvent(
+                    ClickEvent.Action.RUN_COMMAND,
+                    "/thedeadlies play-selected"
+            ));
+            controls.addExtra(play);
+            player.spigot().sendMessage(controls);
+        }
+    }
+
+    public boolean toggleCardSelection(UUID uuid, CardSelection selection) {
+        if (!isPlayerTurn(uuid)
+                || !isValidSelection(uuid, List.of(selection))) {
+            return false;
+        }
+        Set<CardSelection> selectedCards = selectedHandCards.computeIfAbsent(
+                uuid,
+                ignored -> new LinkedHashSet<>()
+        );
+        if (!selectedCards.remove(selection)) {
+            selectedCards.add(selection);
+        }
+        if (selectedCards.isEmpty()) {
+            selectedHandCards.remove(uuid);
+        }
+        sendHandControls(uuid);
+        return true;
+    }
+
+    public boolean playSelectedCards(UUID uuid, UUID targetUuid, int corruptionSuit) {
+        Set<CardSelection> selectedCards = selectedHandCards.get(uuid);
+        if (selectedCards == null || selectedCards.isEmpty()) {
+            return false;
+        }
+        if (!playCards(uuid, new ArrayList<>(selectedCards), targetUuid, corruptionSuit)) {
+            return false;
+        }
+        selectedHandCards.remove(uuid);
+        return true;
     }
 
     /**
@@ -559,9 +606,7 @@ public class GameProcedureControl {
 
         Integer card = suit.remove(cardIndex);
 
-        while (discardPile.size() < 10) {
-            discardPile.add(new ArrayList<>());
-        }
+        ensureDiscardPileGroups();
         if (suitIndex != 9) {
             discardPile.get(suitIndex).add(card);
             TextComponent discarded = message(PREFIX + "§e" + playerName(uuid)
@@ -869,11 +914,15 @@ public class GameProcedureControl {
     }
 
     private void addDiscard(int suitIndex, int value) {
-        while (discardPile.size() < 10) {
-            discardPile.add(new ArrayList<>());
-        }
+        ensureDiscardPileGroups();
         if (suitIndex != 9) {
             discardPile.get(suitIndex).add(value);
+        }
+    }
+
+    private void ensureDiscardPileGroups() {
+        while (discardPile.size() < CARD_GROUP_COUNT) {
+            discardPile.add(new ArrayList<>());
         }
     }
 
@@ -1138,13 +1187,9 @@ public class GameProcedureControl {
                         completeGluttony(playerUuid);
                     });
                     return;
-                } else {
-                    drawCards(playerUuid, 3);
                 }
             }
-            else {
-                drawCards(playerUuid, 3);
-            }
+            drawCards(playerUuid, 3);
             completeGluttony(playerUuid);
         };
         if (isOtherPlayer(playerUuid, targetUuid)) {

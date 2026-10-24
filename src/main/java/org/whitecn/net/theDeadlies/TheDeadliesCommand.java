@@ -19,11 +19,12 @@ import static org.whitecn.net.theDeadlies.Vars.PREFIX;
 public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
     private final TheDeadlies plugin;
     private final HashMap<UUID, InviteRequest> invites = new HashMap<>();
-    private final HashMap<UUID, GameRoom> gameRooms = new HashMap<>();
+    private final GameRoomManager gameRoomManager;
     private final HashMap<UUID, JoinRequest> joinRequests = new HashMap<>();
 
     public TheDeadliesCommand(TheDeadlies plugin) {
         this.plugin = plugin;
+        this.gameRoomManager = new GameRoomManager(plugin);
     }
 
     @Override
@@ -37,7 +38,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length >= 2 && args[0].equalsIgnoreCase("invite")) {
-            GameRoom inviterRoom = getPlayerGameRoom(player.getUniqueId());
+            GameRoom inviterRoom = gameRoomManager.getPlayerGameRoom(player.getUniqueId());
             if (inviterRoom != null
                     && (inviterRoom.started
                     || !inviterRoom.owner.equals(player.getUniqueId()))) {
@@ -55,7 +56,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                     sendMessage(player, PREFIX + I18n.get(Messages.CANNOT_INVITE_YOURSELF));
                     return true;
                 }
-                if (isInGameRoom(target.getUniqueId())) {
+                if (gameRoomManager.isInGameRoom(target.getUniqueId())) {
                     sendMessage(player, PREFIX + I18n.get(Messages.PLAYER_2) + target.getName()
                             + I18n.get(Messages.ALREADY_GAME_ROOM));
                     return true;
@@ -97,31 +98,19 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                     }
                 }
                 message.addExtra("\n               ");
-                TextComponent agree = new TextComponent(I18n.get(Messages.ACCEPT));
-                agree.setClickEvent(new ClickEvent(
-                        ClickEvent.Action.RUN_COMMAND,
-                        "/thedeadlies invite-accept " + inviteId
+                message.addExtra(actionButton(
+                        Messages.ACCEPT,
+                        "/thedeadlies invite-accept " + inviteId,
+                        Messages.CLICK_ACCEPT_INVITATION,
+                        ChatColor.GREEN
                 ));
-                agree.setHoverEvent(new HoverEvent(
-                        HoverEvent.Action.SHOW_TEXT,
-                        new ComponentBuilder(I18n.get(Messages.CLICK_ACCEPT_INVITATION))
-                                .color(ChatColor.GREEN)
-                                .create()
-                ));
-                TextComponent disagree = new TextComponent(I18n.get(Messages.DECLINE));
-                disagree.setClickEvent(new ClickEvent(
-                        ClickEvent.Action.RUN_COMMAND,
-                        "/thedeadlies invite-deny " + inviteId
-                ));
-                disagree.setHoverEvent(new HoverEvent(
-                        HoverEvent.Action.SHOW_TEXT,
-                        new ComponentBuilder(I18n.get(Messages.CLICK_DECLINE_INVITATION))
-                                .color(ChatColor.RED)
-                                .create()
-                ));
-                message.addExtra(agree);
                 message.addExtra("    ");
-                message.addExtra(disagree);
+                message.addExtra(actionButton(
+                        Messages.DECLINE,
+                        "/thedeadlies invite-deny " + inviteId,
+                        Messages.CLICK_DECLINE_INVITATION,
+                        ChatColor.RED
+                ));
                 target.spigot().sendMessage(message);
             }
             if (request.pendingPlayers.isEmpty()) {
@@ -155,24 +144,20 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                                     sendMessage(pending, PREFIX + I18n.get(Messages.INVITATION_TIMED_OUT) + I18n.get(Messages.AUTOMATICALLY_DECLINED));
                                 }
                             }
-                            completeInviteRequest(inviteId, current);
                         } else {
                             if (inviterPlayer != null && inviterPlayer.isOnline()) {
                                 sendMessage(inviterPlayer, PREFIX + I18n.get(Messages.ALL_INVITED_PLAYERS));
                             }
-                            completeInviteRequest(inviteId, current);
                         }
+                        completeInviteRequest(inviteId, current);
                     },
                     20L * 15);
             return true;
         }
 
         if (args.length == 2 && args[0].equalsIgnoreCase("invite-accept")) {
-            UUID inviteId;
-            try {
-                inviteId = UUID.fromString(args[1]);
-            } catch (IllegalArgumentException e) {
-                sendMessage(player, PREFIX + I18n.get(Messages.INVALID_INVITATION));
+            UUID inviteId = parseRequestId(player, args[1], Messages.INVALID_INVITATION);
+            if (inviteId == null) {
                 return true;
             }
             InviteRequest request = invites.get(inviteId);
@@ -190,7 +175,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                 sendMessage(player, PREFIX + I18n.get(Messages.HAVE_ALREADY_RESPONDED));
                 return true;
             }
-            if (isInGameRoom(uuid)) {
+            if (gameRoomManager.isInGameRoom(uuid)) {
                 sendMessage(player, PREFIX + I18n.get(Messages.ALREADY_ANOTHER_GAME));
                 if (inviter != null && inviter.isOnline()) {
                     sendMessage(inviter, PREFIX + I18n.get(Messages.PLAYER_2) + player.getName()
@@ -213,11 +198,8 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 2 && args[0].equalsIgnoreCase("invite-deny")) {
-            UUID inviteId;
-            try {
-                inviteId = UUID.fromString(args[1]);
-            } catch (IllegalArgumentException e) {
-                sendMessage(player, PREFIX + I18n.get(Messages.INVALID_INVITATION));
+            UUID inviteId = parseRequestId(player, args[1], Messages.INVALID_INVITATION);
+            if (inviteId == null) {
                 return true;
             }
             InviteRequest request = invites.get(inviteId);
@@ -251,7 +233,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                 sendMessage(player, PREFIX + I18n.get(Messages.PLAYER_NOT_FOUND) + args[1]);
                 return true;
             }
-            GameRoom room = gameRooms.get(target.getUniqueId());
+            GameRoom room = gameRoomManager.getOwnedRoom(target.getUniqueId());
             if (room == null || !room.valid) {
                 sendMessage(player, PREFIX + I18n.get(Messages.THAT_PLAYER_HAS));
                 return true;
@@ -260,7 +242,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                 sendMessage(player, PREFIX + I18n.get(Messages.ALREADY_GAME_ROOM_2));
                 return true;
             }
-            if (isInGameRoom(player.getUniqueId())) {
+            if (gameRoomManager.isInGameRoom(player.getUniqueId())) {
                 sendMessage(player, PREFIX + I18n.get(Messages.ALREADY_ANOTHER_GAME_2));
                 return true;
             }
@@ -278,31 +260,19 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             TextComponent message = new TextComponent();
             message.addExtra(PREFIX + I18n.get(Messages.PLAYER_3) + player.getName() + I18n.get(Messages.REQUESTED_JOIN_THEDEADLIES));
             message.addExtra(PREFIX + I18n.get(Messages.EXPIRES_15_SECONDS));
-            TextComponent agree = new TextComponent(I18n.get(Messages.ACCEPT));
-            agree.setClickEvent(new ClickEvent(
-                    ClickEvent.Action.RUN_COMMAND,
-                    "/thedeadlies joingame-accept " + requestId
+            message.addExtra(actionButton(
+                    Messages.ACCEPT,
+                    "/thedeadlies joingame-accept " + requestId,
+                    Messages.CLICK_ACCEPT_JOIN,
+                    ChatColor.GREEN
             ));
-            agree.setHoverEvent(new HoverEvent(
-                    HoverEvent.Action.SHOW_TEXT,
-                    new ComponentBuilder(I18n.get(Messages.CLICK_ACCEPT_JOIN))
-                            .color(ChatColor.GREEN)
-                            .create()
-            ));
-            TextComponent disagree = new TextComponent(I18n.get(Messages.DECLINE));
-            disagree.setClickEvent(new ClickEvent(
-                    ClickEvent.Action.RUN_COMMAND,
-                    "/thedeadlies joingame-deny " + requestId
-            ));
-            disagree.setHoverEvent(new HoverEvent(
-                    HoverEvent.Action.SHOW_TEXT,
-                    new ComponentBuilder(I18n.get(Messages.CLICK_DECLINE_JOIN))
-                            .color(ChatColor.RED)
-                            .create()
-            ));
-            message.addExtra(agree);
             message.addExtra("    ");
-            message.addExtra(disagree);
+            message.addExtra(actionButton(
+                    Messages.DECLINE,
+                    "/thedeadlies joingame-deny " + requestId,
+                    Messages.CLICK_DECLINE_JOIN,
+                    ChatColor.RED
+            ));
             target.spigot().sendMessage(message);
             sendMessage(player, PREFIX + I18n.get(Messages.JOIN_REQUEST_SENT) + target.getName() + I18n.get(Messages.MESSAGE_050));
             Bukkit.getScheduler().runTaskLater(
@@ -322,11 +292,8 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 2 && args[0].equalsIgnoreCase("joingame-accept")) {
-            UUID requestId;
-            try {
-                requestId = UUID.fromString(args[1]);
-            } catch (IllegalArgumentException e) {
-                sendMessage(player, PREFIX + I18n.get(Messages.INVALID_JOIN_REQUEST));
+            UUID requestId = parseRequestId(player, args[1], Messages.INVALID_JOIN_REQUEST);
+            if (requestId == null) {
                 return true;
             }
             JoinRequest request = joinRequests.remove(requestId);
@@ -338,7 +305,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                 sendMessage(player, PREFIX + I18n.get(Messages.NOT_OWN_GAME));
                 return true;
             }
-            GameRoom room = gameRooms.get(player.getUniqueId());
+            GameRoom room = gameRoomManager.getOwnedRoom(player.getUniqueId());
             if (room == null || !room.valid) {
                 sendMessage(player, PREFIX + I18n.get(Messages.GAME_ROOM_NO));
                 return true;
@@ -352,7 +319,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
                 sendMessage(player, PREFIX + I18n.get(Messages.APPLICANT_OFFLINE));
                 return true;
             }
-            if (isInGameRoom(applicant.getUniqueId())) {
+            if (gameRoomManager.isInGameRoom(applicant.getUniqueId())) {
                 sendMessage(applicant, PREFIX + I18n.get(Messages.ALREADY_ANOTHER_GAME_2));
                 return true;
             }
@@ -364,11 +331,8 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 2 && args[0].equalsIgnoreCase("joingame-deny")) {
-            UUID requestId;
-            try {
-                requestId = UUID.fromString(args[1]);
-            } catch (IllegalArgumentException e) {
-                sendMessage(player, PREFIX + I18n.get(Messages.INVALID_JOIN_REQUEST));
+            UUID requestId = parseRequestId(player, args[1], Messages.INVALID_JOIN_REQUEST);
+            if (requestId == null) {
                 return true;
             }
             JoinRequest request = joinRequests.remove(requestId);
@@ -388,15 +352,15 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("quitgame")) {
-            quitGame(player);
+            gameRoomManager.quitGame(player);
             return true;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("endgame")) {
-            endGame(player);
+            gameRoomManager.endGame(player);
             return true;
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("choose")) {
-            GameRoom room = getPlayerGameRoom(player.getUniqueId());
+            GameRoom room = gameRoomManager.getPlayerGameRoom(player.getUniqueId());
             if (room == null || room.getProcedure() == null
                     || !room.getProcedure().resolveChoice(
                     player.getUniqueId(),
@@ -406,8 +370,59 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             }
             return true;
         }
+        if (args.length == 2 && args[0].equalsIgnoreCase("select")) {
+            GameRoom room = gameRoomManager.getPlayerGameRoom(player.getUniqueId());
+            if (room == null || room.getProcedure() == null) {
+                sendMessage(player, PREFIX + I18n.get(Messages.NOT_ACTIVE_GAME));
+                return true;
+            }
+            try {
+                String[] parts = args[1].split(":");
+                if (parts.length != 2 || !room.getProcedure().toggleCardSelection(
+                        player.getUniqueId(),
+                        new GameProcedureControl.CardSelection(
+                                Integer.parseInt(parts[0]),
+                                Integer.parseInt(parts[1])
+                        )
+                )) {
+                    sendMessage(player, PREFIX + I18n.get(Messages.INVALID_PLAY_NOT));
+                }
+            } catch (IllegalArgumentException exception) {
+                sendMessage(player, PREFIX + I18n.get(Messages.USAGE_THEDEADLIES_PLAY));
+            }
+            return true;
+        }
+        if (args.length >= 1 && args[0].equalsIgnoreCase("play-selected")) {
+            if (args.length > 3) {
+                sendMessage(player, PREFIX + I18n.get(Messages.USAGE_THEDEADLIES_PLAY));
+                return true;
+            }
+            GameRoom room = gameRoomManager.getPlayerGameRoom(player.getUniqueId());
+            if (room == null || room.getProcedure() == null) {
+                sendMessage(player, PREFIX + I18n.get(Messages.NOT_ACTIVE_GAME));
+                return true;
+            }
+            try {
+                UUID target = args.length >= 2
+                        ? UUID.fromString(args[1])
+                        : null;
+                int corruptionSuit = args.length == 3
+                        ? Integer.parseInt(args[2])
+                        : -1;
+                if (!room.getProcedure().playSelectedCards(
+                        player.getUniqueId(),
+                        target,
+                        corruptionSuit
+                )) {
+                    sendMessage(player, PREFIX + I18n.get(Messages.INVALID_PLAY_NOT));
+                }
+            } catch (IllegalArgumentException exception) {
+                sendMessage(player, PREFIX + I18n.get(Messages.USAGE_THEDEADLIES_PLAY));
+            }
+            return true;
+        }
         if (args.length >= 2 && args[0].equalsIgnoreCase("play")) {
-            GameRoom room = getPlayerGameRoom(player.getUniqueId());
+            GameRoom room = gameRoomManager.getPlayerGameRoom(player.getUniqueId());
             if (room == null || room.getProcedure() == null) {
                 sendMessage(player, PREFIX + I18n.get(Messages.NOT_ACTIVE_GAME));
                 return true;
@@ -445,7 +460,7 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("startgame")) {
-            startGame(player.getUniqueId());
+            gameRoomManager.startGame(player.getUniqueId());
             return true;
         }
 
@@ -453,222 +468,39 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    private void createGameRoom(UUID owner, Set<UUID> invitedPlayers) {
-        if (gameRooms.containsKey(owner)) {
-            Player player = Bukkit.getPlayer(owner);
-            if (player != null && player.isOnline()) {
-                sendMessage(player, PREFIX + I18n.get(Messages.ALREADY_HAVE_VALID));
-            }
-
-            return;
-        }
-        GameRoom room = new GameRoom(plugin, owner);
-        room.players.add(owner);
-        room.players.addAll(invitedPlayers);
-        gameRooms.put(owner, room);
-        Player ownerPlayer = Bukkit.getPlayer(owner);
-        if (ownerPlayer != null && ownerPlayer.isOnline()) {
-            sendMessage(ownerPlayer, PREFIX + I18n.get(Messages.GAME_ROOM_CREATED));
-        }
-        for (UUID uuid : room.players) {
-            Player player = Bukkit.getPlayer(uuid);
-            if (player != null && player.isOnline()) {
-                sendMessage(player, PREFIX + I18n.get(Messages.JOINED_THEDEADLIES_GAME_2));
-            }
-        }
-    }
-
     private void completeInviteRequest(UUID inviteId, InviteRequest request) {
         invites.remove(inviteId);
-        Player inviter = Bukkit.getPlayer(request.inviter);
-        if (request.acceptedPlayers.isEmpty()) {
-            if (inviter != null && inviter.isOnline()) {
-                sendMessage(inviter, PREFIX + I18n.get(Messages.NO_PLAYERS_ACCEPTED));
-            }
-            return;
-        }
-
-        GameRoom inviterRoom = getPlayerGameRoom(request.inviter);
-        if (inviterRoom != null
-                && (inviterRoom.started
-                || !inviterRoom.owner.equals(request.inviter))) {
-            if (inviter != null && inviter.isOnline()) {
-                sendMessage(inviter, PREFIX + I18n.get(Messages.JOINED_ANOTHER_ROOM)
-                        + I18n.get(Messages.INVITATION_CANNOT_COMPLETED));
-            }
-            return;
-        }
-
-        GameRoom existingRoom = gameRooms.get(request.inviter);
-        if (existingRoom != null && existingRoom.valid && !existingRoom.started) {
-            for (UUID accepted : request.acceptedPlayers) {
-                if (!isInGameRoom(accepted)) {
-                    existingRoom.players.add(accepted);
-                    Player member = Bukkit.getPlayer(accepted);
-                    if (member != null && member.isOnline()) {
-                        sendMessage(member, PREFIX + I18n.get(Messages.JOINED_THEDEADLIES_GAME));
-                    }
-                }
-            }
-            if (inviter != null && inviter.isOnline()) {
-                sendMessage(inviter, PREFIX + I18n.get(Messages.ACCEPTED_INVITEES_HAVE));
-            }
-            return;
-        }
-
-        createGameRoom(request.inviter, request.acceptedPlayers);
-    }
-
-    private void quitGame(Player player) {
-        GameRoom room = getPlayerGameRoom(player.getUniqueId());
-        if (room == null) {
-            sendMessage(player, PREFIX + I18n.get(Messages.NOT_GAME_ROOM));
-            return;
-        }
-        if (!room.started) {
-            room.players.remove(player.getUniqueId());
-            sendMessage(player, PREFIX + I18n.get(Messages.LEFT_GAME_ROOM));
-            Player owner = Bukkit.getPlayer(room.owner);
-            if (owner != null && owner.isOnline() && !room.owner.equals(player.getUniqueId())) {
-                sendMessage(owner, PREFIX + I18n.get(Messages.PLAYER) + player.getName() + I18n.get(Messages.LEFT_GAME_ROOM_2));
-            }
-
-            if (room.owner.equals(player.getUniqueId())) {
-                room.valid = false;
-                gameRooms.remove(room.owner);
-                for (UUID uuid : room.players) {
-                    Player member = Bukkit.getPlayer(uuid);
-                    if (member != null && member.isOnline()) {
-                        sendMessage(member, PREFIX + I18n.get(Messages.OWNER_LEFT_GAME));
-                    }
-                }
-                room.players.clear();
-                return;
-            }
-            if (room.players.isEmpty()) {
-                room.valid = false;
-                gameRooms.remove(room.owner);
-            }
-            return;
-        }
-
-        if (room.owner.equals(player.getUniqueId())) {
-            dissolveGameRoom(room, I18n.get(Messages.OWNER_LEFT_GAME_2));
-            return;
-        }
-
-        room.players.remove(player.getUniqueId());
-        sendMessage(player, PREFIX + I18n.get(Messages.LEFT_GAME_GAME));
-        for (UUID uuid : room.players) {
-            Player member = Bukkit.getPlayer(uuid);
-            if (member != null && member.isOnline()) {
-                sendMessage(member, PREFIX + I18n.get(Messages.PLAYER) + player.getName() + I18n.get(Messages.LEFT_GAME));
-            }
-        }
-
-        if (room.players.isEmpty()) {
-            room.valid = false;
-            gameRooms.remove(room.owner);
-        }
-    }
-
-    private void endGame(Player player) {
-        GameRoom room = getPlayerGameRoom(player.getUniqueId());
-        if (room == null || !room.started || room.procedure == null) {
-            sendMessage(player, PREFIX + I18n.get(Messages.NOT_ACTIVE_GAME));
-            return;
-        }
-
-        room.procedure.finishGame();
-        sendMessage(player, PREFIX + I18n.get(Messages.GAME_HAS_ENDED));
-        for (UUID uuid : room.players) {
-            Player member = Bukkit.getPlayer(uuid);
-            if (member != null && member.isOnline()
-                    && !uuid.equals(player.getUniqueId())) {
-                sendMessage(member, PREFIX + I18n.get(Messages.GAME_ENDED) + player.getName()
-                        + I18n.get(Messages.ROOM_STILL_OPEN));
-            }
-        }
-    }
-
-    private void dissolveGameRoom(GameRoom room, String reason) {
-        room.valid = false;
-        if (room.procedure != null) {
-            room.procedure.finishGame();
-        }
-
-        for (UUID uuid : new HashSet<>(room.players)) {
-            Player member = Bukkit.getPlayer(uuid);
-            if (member != null && member.isOnline()) {
-                sendMessage(member, PREFIX + "§c" + reason);
-            }
-        }
-
-        room.players.clear();
-        gameRooms.remove(room.owner);
-    }
-
-    private void startGame(UUID owner) {
-        GameRoom room = gameRooms.get(owner);
-        if (room == null || !room.valid || room.started) {
-            return;
-        }
-        if (room.players.size() < 2) {
-            Player player = Bukkit.getPlayer(owner);
-            if (player != null && player.isOnline()) {
-                sendMessage(player, PREFIX + I18n.get(Messages.LEAST_TWO_PLAYERS));
-            }
-            return;
-        }
-        for (UUID uuid : room.players) {
-            Player member = Bukkit.getPlayer(uuid);
-            if (member == null || !member.isOnline()) {
-                Player player = Bukkit.getPlayer(owner);
-                if (player != null && player.isOnline()) {
-                    sendMessage(player, PREFIX + I18n.get(Messages.ROOM_MEMBER_OFFLINE));
-                }
-                return;
-            }
-        }
-        room.started = true;
-        ArrayList<String> playersIn = new ArrayList<>();
-        for (UUID uuid : room.players) {
-            Player member = Bukkit.getPlayer(uuid);
-            playersIn.add(member.getName());
-        }
-        String names = String.join(", ", playersIn);
-        for (UUID uuid : room.players) {
-            Player player = Bukkit.getPlayer(uuid);
-            if (player != null && player.isOnline()) {
-                sendMessage(player, PREFIX + I18n.get(Messages.GAME_STARTED_PLAYERS) + names);
-            }
-        }
-        try {
-            room.startProcedure();
-        } catch (IllegalStateException exception) {
-            room.resetAfterGame();
-            Player player = Bukkit.getPlayer(owner);
-            if (player != null && player.isOnline()) {
-                sendMessage(player, PREFIX + I18n.get(Messages.COULD_NOT_START) + exception.getMessage());
-            }
-        }
-    }
-
-    private boolean isInGameRoom(UUID uuid) {
-        return getPlayerGameRoom(uuid) != null;
-    }
-
-    private GameRoom getPlayerGameRoom(UUID uuid) {
-        for (GameRoom room : gameRooms.values()) {
-            if (room.valid && room.players.contains(uuid)) {
-                return room;
-            }
-        }
-        return null;
+        gameRoomManager.completeInviteRequest(request.inviter, request.acceptedPlayers);
     }
 
     private void sendMessage(CommandSender recipient, String message) {
         recipient.sendMessage(message);
+    }
+
+    private UUID parseRequestId(Player player, String value, String invalidMessage) {
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException exception) {
+            sendMessage(player, PREFIX + I18n.get(invalidMessage));
+            return null;
+        }
+    }
+
+    private TextComponent actionButton(
+            String label,
+            String command,
+            String hoverText,
+            ChatColor color
+    ) {
+        TextComponent button = new TextComponent(I18n.get(label));
+        button.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command));
+        button.setHoverEvent(new HoverEvent(
+                HoverEvent.Action.SHOW_TEXT,
+                new ComponentBuilder(I18n.get(hoverText))
+                        .color(color)
+                        .create()
+        ));
+        return button;
     }
 
     private static class InviteRequest {
@@ -685,18 +517,21 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
 
     public static class GameRoom {
         private final TheDeadlies plugin;
-        private final UUID owner;
+        final UUID owner;
         public final Set<UUID> players = new HashSet<>();
-        private boolean started = false;
-        private boolean valid = true;
-        private GameProcedureControl procedure;
-        private GameRoom(TheDeadlies plugin, UUID owner) {
+        boolean started;
+        boolean valid = true;
+        GameProcedureControl procedure;
+
+        GameRoom(TheDeadlies plugin, UUID owner) {
             this.plugin = plugin;
             this.owner = owner;
         }
+
         public GameProcedureControl getProcedure() {
             return procedure;
         }
+
         public void startProcedure() {
             if (procedure != null) {
                 throw new IllegalStateException(I18n.get(Messages.GAME_PROCEDURE_HAS));
@@ -708,13 +543,16 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             );
             procedure.start();
         }
-        private void resetAfterGame() {
+
+        void resetAfterGame() {
             procedure = null;
             started = false;
         }
+
         public boolean isStarted() {
             return started;
         }
+
         public boolean isValid() {
             return valid;
         }
@@ -737,6 +575,8 @@ public class TheDeadliesCommand implements CommandExecutor, TabCompleter {
             return Arrays.asList(
                     "invite",
                     "joingame",
+                    "select",
+                    "play-selected",
                     "quitgame",
                     "startgame",
                     "endgame"

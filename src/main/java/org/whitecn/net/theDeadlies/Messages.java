@@ -106,6 +106,9 @@ public final class Messages {
     public static final String NEXT = "next";
     public static final String RESOLUTION_BEGINS = "resolution-begins";
     public static final String HAND_CLICK_CARD = "hand-click-card";
+    public static final String HAND_SELECTION_VALID = "hand-selection-valid";
+    public static final String HAND_SELECTION_INVALID = "hand-selection-invalid";
+    public static final String HAND_PLAY_SELECTED = "hand-play-selected";
     public static final String DREW_CARD = "drew-card";
     public static final String PURIFICATION = "purification";
     public static final String TAKE_HALO_HAND = "take-halo-hand";
