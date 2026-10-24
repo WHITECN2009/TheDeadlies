@@ -16,6 +16,8 @@
 language: ZH_CN # 可选：ZH_CN（默认）或 EN
 ```
 
+`plugins/TheDeadlies/language.yml` 保存中文和英文消息文本，可在其中修改对应语言的显示内容。
+
 从源码构建：
 
 ```text

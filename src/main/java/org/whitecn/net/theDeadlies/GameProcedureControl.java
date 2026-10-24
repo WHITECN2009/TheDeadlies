@@ -99,11 +99,11 @@ public class GameProcedureControl {
      */
     public void start() {
         if (phase != GamePhase.CREATED) {
-            throw new IllegalStateException("这局游戏已经启动");
+            throw new IllegalStateException(I18n.get(Messages.GAME_HAS_ALREADY));
         }
 
         if (players.size() < 2) {
-            throw new IllegalStateException("至少需要两名玩家才能开始游戏");
+            throw new IllegalStateException(I18n.get(Messages.LEAST_TWO_PLAYERS_2));
         }
 
         for (UUID uuid : players) {
@@ -119,9 +119,9 @@ public class GameProcedureControl {
         phase = GamePhase.PLAYER_TURN;
         currentPlayerIndex = 0;
         round = 1;
-        broadcastText(message(PREFIX + "§a游戏已经开始"));
-        broadcastText(message(PREFIX + "§e当前轮到 " + playerName(getCurrentPlayer())
-                + " §e行动，请打出至少一张手牌"));
+        broadcastText(message(PREFIX + I18n.get(Messages.GAME_HAS_STARTED_3)));
+        broadcastText(message(PREFIX + I18n.get(Messages.NOW) + playerName(getCurrentPlayer())
+                + I18n.get(Messages.TURN_PLAY_LEAST)));
         expireLaziness(getCurrentPlayer());
         for (UUID uuid : players) {
             sendHandControls(uuid);
@@ -213,7 +213,7 @@ public class GameProcedureControl {
             for (int i = 0; i < HAND_SIZE; i++) {
                 if (!drawCard(uuid)) {
                     throw new IllegalStateException(
-                            "牌堆不足 无法完成初始发牌"
+                            I18n.get(Messages.NOT_ENOUGH_CARDS)
                     );
                 }
             }
@@ -332,9 +332,9 @@ public class GameProcedureControl {
             round++;
         }
 
-        broadcastText(message(PREFIX + "§e" + playerName(uuid) + " §f完成了本回合"));
-        broadcastText(message(PREFIX + "§e现在轮到 " + playerName(getCurrentPlayer())
-                + " §e行动，请打出至少一张手牌"));
+        broadcastText(message(PREFIX + "§e" + playerName(uuid) + I18n.get(Messages.FINISHED_TURN)));
+        broadcastText(message(PREFIX + I18n.get(Messages.NOW_2) + playerName(getCurrentPlayer())
+                + I18n.get(Messages.TURN_PLAY_LEAST)));
         expireLaziness(getCurrentPlayer());
         sendHandControls(getCurrentPlayer());
     }
@@ -344,7 +344,7 @@ public class GameProcedureControl {
      */
     public void announceCardPlayed(UUID playerUuid, int suitIndex, int cardValue) {
         TextComponent text = message(PREFIX + "§e" + playerName(playerUuid)
-                + " §f打出了 ");
+                + I18n.get(Messages.PLAYED));
         text.addExtra(cardComponent(suitIndex, cardValue));
         broadcastText(text);
     }
@@ -358,8 +358,8 @@ public class GameProcedureControl {
             String judgmentDescription
     ) {
         broadcastText(message(PREFIX + "§e" + playerName(playerUuid)
-                + " §f选择了 §e" + playerName(targetUuid)
-                + " §f 将要进行 §d" + judgmentDescription + "§f"));
+                + I18n.get(Messages.SELECTED) + playerName(targetUuid)
+                + I18n.get(Messages.NEXT) + judgmentDescription + "§f"));
     }
 
     /**
@@ -386,7 +386,7 @@ public class GameProcedureControl {
                         return;
                     }
 
-                    broadcastText(message(PREFIX + "§d判定开始：§f"
+                    broadcastText(message(PREFIX + I18n.get(Messages.RESOLUTION_BEGINS)
                             + judgmentDescription));
                     judgment.run();
                 },
@@ -400,7 +400,7 @@ public class GameProcedureControl {
         if (player == null || !player.isOnline() || hand == null) {
             return;
         }
-        TextComponent text = message(PREFIX + "§f你的手牌（点击出牌）： ");
+        TextComponent text = message(PREFIX + I18n.get(Messages.HAND_CLICK_CARD));
         for (int suit = 0; suit < hand.size(); suit++) {
             for (int index = 0; index < hand.get(suit).size(); index++) {
                 TextComponent card = cardComponent(suit, hand.get(suit).get(index));
@@ -420,7 +420,7 @@ public class GameProcedureControl {
      */
     private void announceCardDrawn(UUID playerUuid) {
         broadcastText(message(PREFIX + "§e" + playerName(playerUuid)
-                + " §f抽取了1张牌"));
+                + I18n.get(Messages.DREW_CARD)));
         sendHandControls(playerUuid);
     }
 
@@ -432,12 +432,11 @@ public class GameProcedureControl {
         String cardName = description.numbered
                 ? description.name + "-" + cardValue
                 : description.name;
-        cardName = I18n.tr(cardName);
         TextComponent card = new TextComponent("[" + cardName + "]");
         card.setColor(description.color);
         card.setHoverEvent(new HoverEvent(
                 HoverEvent.Action.SHOW_TEXT,
-                new ComponentBuilder(I18n.tr(description.effect))
+                new ComponentBuilder(description.effect)
                         .color(description.hoverColor)
                         .create()
         ));
@@ -447,84 +446,83 @@ public class GameProcedureControl {
     private CardDescription cardDescription(int suitIndex, int cardValue) {
         return switch (suitIndex) {
             case 0 -> new CardDescription(
-                    "净化",
+                    I18n.get(Messages.PURIFICATION),
                     ChatColor.WHITE,
                     ChatColor.GRAY,
-                    "将光环放入你的手牌，即使它当前在其他玩家手中。"
+                    I18n.get(Messages.TAKE_HALO_HAND)
             );
             case 1 -> new CardDescription(
-                    "傲慢",
+                    I18n.get(Messages.PRIDE),
                     ChatColor.RED,
                     ChatColor.DARK_RED,
-                    "询问另一名玩家是否有傲慢。若他展示傲慢，你抽1张牌；否则他抽1张牌。"
+                    I18n.get(Messages.ASK_ANOTHER_PLAYER)
             );
             case 2 -> new CardDescription(
-                    "嫉妒",
+                    I18n.get(Messages.ENVY),
                     ChatColor.GREEN,
                     ChatColor.DARK_GREEN,
-                    "抽2张牌。然后，若你手中没有嫉妒，可以与任意玩家交换手牌。"
+                    I18n.get(Messages.DRAW_CARDS_THEN)
             );
             case 3 -> new CardDescription(
-                    "愤怒",
+                    I18n.get(Messages.WRATH),
                     ChatColor.DARK_RED,
                     ChatColor.RED,
-                    "选择另一名玩家，他抽2张牌。然后他可以弃掉1张愤怒；若他这么做，你抽2张牌。"
-                            + "如此循环，直到有人不能或不想弃掉愤怒。"
+                    I18n.get(Messages.CHOOSE_ANOTHER_PLAYER)
+                            + I18n.get(Messages.REPEAT_UNTIL_PLAYER)
             );
             case 4 -> new CardDescription(
-                    "懒惰",
+                    I18n.get(Messages.SLOTH),
                     ChatColor.GRAY,
                     ChatColor.DARK_GRAY,
-                    "将懒惰放在自己面前。所有面前有懒惰的对手各抽1张牌；你的下个回合开始时弃掉此牌。"
+                    I18n.get(Messages.PLACE_SLOTH_FRONT)
             );
             case 5 -> new CardDescription(
-                    "贪婪",
+                    I18n.get(Messages.GREED),
                     ChatColor.GOLD,
                     ChatColor.YELLOW,
-                    "向其他玩家逐张发牌。发出2张非贪婪牌且最后一张不是贪婪时，可选择停止。"
-                            + "发出两张同花色的非贪婪牌时强制停止，并将发出的牌收回手牌。发出5张牌后可清空手牌。"
+                    I18n.get(Messages.DEAL_CARDS_ONE)
+                            + I18n.get(Messages.TWO_NON_GREED)
             );
             case 6 -> new CardDescription(
-                    "暴食",
+                    I18n.get(Messages.GLUTTONY),
                     ChatColor.DARK_PURPLE,
                     ChatColor.LIGHT_PURPLE,
-                    "选择从另一名玩家手中随机抽1张牌，或自己抽3张牌，然后立即再进行一次回合。"
+                    I18n.get(Messages.TAKE_RANDOM_CARD)
             );
             case 7 -> new CardDescription(
-                    "色欲",
+                    I18n.get(Messages.LUST),
                     ChatColor.LIGHT_PURPLE,
                     ChatColor.DARK_PURPLE,
-                    "选择另一名玩家。对方可以选择什么也不做，或你们各弃1张牌；若有人弃掉色欲，另一人抽3张牌。"
+                    I18n.get(Messages.CHOOSE_ANOTHER_PLAYER_2)
             );
             case 8 -> new CardDescription(
-                    "腐化",
+                    I18n.get(Messages.CORRUPTION),
                     ChatColor.DARK_GRAY,
                     ChatColor.GRAY,
-                    "这张牌拥有全部7种花色。打出时选择一种花色，并执行对应的效果。"
+                    I18n.get(Messages.CARD_HAS_ALL)
             );
             case 9 -> new CardDescription(
-                    "光环",
+                    I18n.get(Messages.HALO),
                     ChatColor.AQUA,
                     ChatColor.BLUE,
-                    "清空你的手牌。打出或弃掉光环时，将它正面朝上放回桌面中央。",
+                    I18n.get(Messages.EMPTY_HAND_PLAYED),
                     false
             );
             default -> new CardDescription(
-                    "未知",
+                    I18n.get(Messages.UNKNOWN),
                     ChatColor.WHITE,
                     ChatColor.GRAY,
-                    "这张牌的效果尚未定义",
+                    I18n.get(Messages.CARD_EFFECT_NOT),
                     true
             );
         };
     }
 
     private TextComponent message(String content) {
-        return new TextComponent(I18n.tr(content));
+        return new TextComponent(content);
     }
 
     private void broadcastText(TextComponent text) {
-        I18n.translate(text);
         for (UUID uuid : players) {
             Player player = Bukkit.getPlayer(uuid);
 
@@ -536,7 +534,7 @@ public class GameProcedureControl {
 
     private String playerName(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
-        return player == null ? "离线玩家" : player.getName();
+        return player == null ? I18n.get(Messages.OFFLINE_PLAYER) : player.getName();
     }
 
     /**
@@ -567,12 +565,12 @@ public class GameProcedureControl {
         if (suitIndex != 9) {
             discardPile.get(suitIndex).add(card);
             TextComponent discarded = message(PREFIX + "§e" + playerName(uuid)
-                    + " §f弃掉了 ");
+                    + I18n.get(Messages.DISCARDED));
             discarded.addExtra(cardComponent(suitIndex, card));
             broadcastText(discarded);
         } else {
             haloPublic = true;
-            broadcastText(message(PREFIX + "§b光环被弃置，回到桌面中央"));
+            broadcastText(message(PREFIX + I18n.get(Messages.HALO_DISCARDED_RETURNED)));
         }
         sendHandControls(uuid);
         return true;
@@ -659,7 +657,7 @@ public class GameProcedureControl {
                         )
                 );
             }
-            promptChoice(uuid, "同数字出牌：选择要执行效果的牌", options, choice -> {
+            promptChoice(uuid, I18n.get(Messages.SAME_NUMBER_PLAY), options, choice -> {
                 String[] parts = choice.split(":");
                 CardSelection chosen = new CardSelection(
                         Integer.parseInt(parts[0]),
@@ -702,7 +700,7 @@ public class GameProcedureControl {
             for (int suit = 1; suit <= 7; suit++) {
                 options.put(Integer.toString(suit), cardName(suit));
             }
-            promptChoice(uuid, "腐化牌：选择要执行的花色", options, choice ->
+            promptChoice(uuid, I18n.get(Messages.CORRUPTION_CHOOSE_SUIT), options, choice ->
                     preparePlay(
                             uuid,
                             selectedCards,
@@ -727,14 +725,14 @@ public class GameProcedureControl {
                 options.entrySet().removeIf(
                         entry -> getHandSize(UUID.fromString(entry.getKey())) == 0
                 );
-                options.put("self", "自己（抽3张）");
+                options.put("self", I18n.get(Messages.YOURSELF_DRAW));
             }
             if (options.isEmpty()) {
                 return false;
             }
             final int selectedEffectSuit = effectSuit;
             final int selectedEffectValue = effectValue;
-            promptChoice(uuid, "选择卡牌目标", options, choice -> {
+            promptChoice(uuid, I18n.get(Messages.CHOOSE_CARD_TARGET), options, choice -> {
                 UUID target = choice.equals("self") ? null : UUID.fromString(choice);
                 commitPlay(
                         uuid,
@@ -895,13 +893,13 @@ public class GameProcedureControl {
         if (suitIndex == 9) {
             clearHand(playerUuid);
             haloPublic = true;
-            broadcastText(message(PREFIX + "§b光环回到桌面中央"));
+            broadcastText(message(PREFIX + I18n.get(Messages.HALO_RETURNED_CENTER)));
             finish.run();
             return;
         }
         if (suitIndex == 8) {
             if (corruptionSuit < 1 || corruptionSuit > 7) {
-                broadcastText(message(PREFIX + "§c腐化牌需要选择1至7的花色"));
+                broadcastText(message(PREFIX + I18n.get(Messages.CORRUPTION_REQUIRES_SUIT)));
                 finish.run();
                 return;
             }
@@ -930,20 +928,20 @@ public class GameProcedureControl {
             finish.run();
             return;
         }
-        scheduleJudgment(playerUuid, targetUuid, "傲慢判定", () -> {
+        scheduleJudgment(playerUuid, targetUuid, I18n.get(Messages.PRIDE_RESOLUTION), () -> {
             Map<String, String> options = new LinkedHashMap<>();
             if (hasCard(targetUuid, 1)) {
-                options.put("show", "展示傲慢");
+                options.put("show", I18n.get(Messages.REVEAL_PRIDE));
             }
-            options.put("refuse", "不展示");
-            promptChoice(targetUuid, "傲慢：选择是否展示手中的傲慢", options, choice -> {
+            options.put("refuse", I18n.get(Messages.NOT_REVEAL));
+            promptChoice(targetUuid, I18n.get(Messages.PRIDE_CHOOSE_WHETHER), options, choice -> {
                 if (choice.equals("show") && hasCard(targetUuid, 1)) {
                     broadcastText(message(PREFIX + "§e" + playerName(targetUuid)
-                            + " §f展示了傲慢，" + playerName(playerUuid) + " §f抽1张牌"));
+                            + I18n.get(Messages.REVEALED_PRIDE) + playerName(playerUuid) + I18n.get(Messages.DRAWS_CARD)));
                     drawCard(playerUuid);
                 } else {
                     broadcastText(message(PREFIX + "§e" + playerName(targetUuid)
-                            + " §f没有展示傲慢，抽1张牌"));
+                            + I18n.get(Messages.DID_NOT_REVEAL)));
                     drawCard(targetUuid);
                 }
                 finish.run();
@@ -963,8 +961,8 @@ public class GameProcedureControl {
             finish.run();
             return;
         }
-        options.put("skip", "不交换");
-        promptChoice(playerUuid, "嫉妒：选择一名玩家交换手牌，或不交换", options, choice -> {
+        options.put("skip", I18n.get(Messages.NOT_SWAP));
+        promptChoice(playerUuid, I18n.get(Messages.ENVY_CHOOSE_PLAYER), options, choice -> {
             if (!choice.equals("skip")) {
                 UUID target = UUID.fromString(choice);
                 ArrayList<ArrayList<Integer>> ownHand = playerCards.get(playerUuid);
@@ -972,7 +970,7 @@ public class GameProcedureControl {
                 playerCards.put(playerUuid, targetHand);
                 playerCards.put(target, ownHand);
                 broadcastText(message(PREFIX + "§a" + playerName(playerUuid)
-                        + " §f与 " + playerName(target) + " §f交换了手牌"));
+                        + I18n.get(Messages.SWAPPED_HANDS) + playerName(target) + I18n.get(Messages.MESSAGE_149)));
                 sendHandControls(playerUuid);
                 sendHandControls(target);
             }
@@ -985,7 +983,7 @@ public class GameProcedureControl {
             finish.run();
             return;
         }
-        scheduleJudgment(playerUuid, targetUuid, "愤怒判定", () ->
+        scheduleJudgment(playerUuid, targetUuid, I18n.get(Messages.WRATH_RESOLUTION), () ->
                 angerStep(playerUuid, targetUuid, targetUuid, finish)
         );
     }
@@ -995,10 +993,10 @@ public class GameProcedureControl {
         drawCard(responder);
         Map<String, String> options = new LinkedHashMap<>();
         if (hasCard(responder, 3)) {
-            options.put("discard", "弃掉1张愤怒，让对方抽2张");
+            options.put("discard", I18n.get(Messages.DISCARD_WRATH_OTHER));
         }
-        options.put("stop", "停止愤怒循环");
-        promptChoice(responder, "愤怒：选择弃牌继续，或停止", options, choice -> {
+        options.put("stop", I18n.get(Messages.STOP_WRATH_LOOP));
+        promptChoice(responder, I18n.get(Messages.WRATH_DISCARD_CONTINUE), options, choice -> {
             if (!choice.equals("discard")) {
                 finish.run();
                 return;
@@ -1012,7 +1010,7 @@ public class GameProcedureControl {
 
     private void resolveLaziness(UUID playerUuid, Runnable finish) {
         broadcastText(message(PREFIX + "§7" + playerName(playerUuid)
-                + " §f将懒惰放在自己面前"));
+                + I18n.get(Messages.PLACED_SLOTH_FRONT)));
         for (UUID opponent : players) {
             if (!opponent.equals(playerUuid) && hasLaziness(opponent)) {
                 drawCard(opponent);
@@ -1034,7 +1032,7 @@ public class GameProcedureControl {
             addDiscard(4, value);
         }
         broadcastText(message(PREFIX + "§7" + playerName(uuid)
-                + " §f回合开始，面前的懒惰牌已弃置"));
+                + I18n.get(Messages.STARTED_TURN_DISCARDED)));
     }
 
     private void resolveGreed(
@@ -1046,9 +1044,9 @@ public class GameProcedureControl {
     ) {
         if (issued.size() >= 5) {
             Map<String, String> options = new LinkedHashMap<>();
-            options.put("keep", "结束发牌");
-            options.put("clear", "清空自己的手牌");
-            promptChoice(playerUuid, "贪婪：已发出5张牌，选择结算", options, choice -> {
+            options.put("keep", I18n.get(Messages.STOP_DEALING));
+            options.put("clear", I18n.get(Messages.EMPTY_HAND));
+            promptChoice(playerUuid, I18n.get(Messages.GREED_CARDS_DEALT), options, choice -> {
                 if (choice.equals("clear")) {
                     clearHand(playerUuid);
                 }
@@ -1059,16 +1057,16 @@ public class GameProcedureControl {
 
         Map<String, String> options = playerOptions(playerUuid);
         if (options.isEmpty()) {
-            broadcastText(message(PREFIX + "§6没有可接收贪婪牌的其他在线玩家"));
+            broadcastText(message(PREFIX + I18n.get(Messages.THERE_NO_OTHER)));
             finish.run();
             return;
         }
         if (nonGreedCount >= 2
                 && !issued.isEmpty()
                 && issued.get(issued.size() - 1).suitIndex() != 5) {
-            options.put("stop", "停止发牌");
+            options.put("stop", I18n.get(Messages.STOP_DEALING_2));
         }
-        promptChoice(playerUuid, "贪婪：选择接收牌的玩家", options, choice -> {
+        promptChoice(playerUuid, I18n.get(Messages.GREED_CHOOSE_PLAYER), options, choice -> {
             if (choice.equals("stop")) {
                 finish.run();
                 return;
@@ -1081,14 +1079,14 @@ public class GameProcedureControl {
                 return;
             }
             TextComponent dealt = message(PREFIX + "§6" + playerName(playerUuid)
-                    + " §f发给了 " + playerName(recipient) + " ");
+                    + I18n.get(Messages.DEALT_CARD) + playerName(recipient) + " ");
             dealt.addExtra(cardComponent(drawn.suitIndex(), drawn.value()));
             broadcastText(dealt);
             issued.add(new IssuedCard(recipient, drawn.suitIndex(), drawn.value()));
             if (!issuedSuits.add(drawn.suitIndex())) {
                 returnIssuedCards(playerUuid, issued);
-                broadcastText(message(PREFIX + "§6已发出两张相同牌名的牌，"
-                        + "贪婪立即停止，并将发出的牌收回手牌"));
+                broadcastText(message(PREFIX + I18n.get(Messages.TWO_CARDS_SAME)
+                        + I18n.get(Messages.GREED_STOPS_IMMEDIATELY)));
                 finish.run();
                 return;
             }
@@ -1128,13 +1126,13 @@ public class GameProcedureControl {
                     for (int i = 1; i <= available.size(); i++) {
                         options.put(Integer.toString(i), "[" + i + "]");
                     }
-                    promptChoice(playerUuid, "暴食：选择 " + playerName(targetUuid)
-                            + " §f手牌中的一张（实际随机抽取）", options, choice -> {
+                    promptChoice(playerUuid, I18n.get(Messages.GLUTTONY_CHOOSE) + playerName(targetUuid)
+                            + I18n.get(Messages.HAND_CARD_SELECTED), options, choice -> {
                         CardSelection selected = available.get(random.nextInt(available.size()));
                         int card = targetHand.get(selected.suitIndex()).remove(selected.cardIndex());
                         playerCards.get(playerUuid).get(selected.suitIndex()).add(card);
                         broadcastText(message(PREFIX + "§5" + playerName(playerUuid)
-                                + " §f从 " + playerName(targetUuid) + " §f手中随机抽取了1张牌"));
+                                + I18n.get(Messages.TOOK_RANDOM_CARD) + playerName(targetUuid) + I18n.get(Messages.HAND)));
                         sendHandControls(targetUuid);
                         sendHandControls(playerUuid);
                         completeGluttony(playerUuid);
@@ -1150,15 +1148,15 @@ public class GameProcedureControl {
             completeGluttony(playerUuid);
         };
         if (isOtherPlayer(playerUuid, targetUuid)) {
-            scheduleJudgment(playerUuid, targetUuid, "暴食判定", resolve);
+            scheduleJudgment(playerUuid, targetUuid, I18n.get(Messages.GLUTTONY_RESOLUTION), resolve);
         } else {
             resolve.run();
         }
     }
 
     private void completeGluttony(UUID playerUuid) {
-        broadcastText(message(PREFIX + "§5暴食效果结算完成：" + playerName(playerUuid)
-                + " §f获得一次额外回合"));
+        broadcastText(message(PREFIX + I18n.get(Messages.GLUTTONY_RESOLVED) + playerName(playerUuid)
+                + I18n.get(Messages.GETS_EXTRA_TURN)));
         finishExtraTurn(playerUuid);
     }
 
@@ -1169,7 +1167,7 @@ public class GameProcedureControl {
             return;
         }
         broadcastText(message(PREFIX + "§5" + playerName(uuid)
-                + " §f继续进行额外回合"));
+                + I18n.get(Messages.CONTINUES_EXTRA_TURN)));
         sendHandControls(uuid);
     }
 
@@ -1191,7 +1189,7 @@ public class GameProcedureControl {
             Consumer<String> callback
     ) {
         if (options.isEmpty() || pendingChoices.containsKey(actor)) {
-            throw new IllegalStateException("当前玩家已有待处理的选择");
+            throw new IllegalStateException(I18n.get(Messages.PLAYER_ALREADY_HAS));
         }
         pendingChoices.put(
                 actor,
@@ -1201,12 +1199,14 @@ public class GameProcedureControl {
         Player player = Bukkit.getPlayer(actor);
         if (player == null || !player.isOnline()) {
             pendingChoices.remove(actor);
-            throw new IllegalStateException("需要操作的玩家已离线");
+            throw new IllegalStateException(I18n.get(Messages.PLAYER_NEEDS_ACT));
         }
 
-        TextComponent choices = message(PREFIX + "§e" + prompt + "： ");
+        TextComponent choices = message(
+                PREFIX + "§e" + prompt + I18n.get(Messages.MESSAGE_001) + " "
+        );
         for (Map.Entry<String, String> option : options.entrySet()) {
-            String label = I18n.tr(option.getValue());
+            String label = option.getValue();
             TextComponent button = new TextComponent("§a[" + label + "]");
             button.setClickEvent(new ClickEvent(
                     ClickEvent.Action.RUN_COMMAND,
@@ -1237,14 +1237,14 @@ public class GameProcedureControl {
 
     private String cardName(int suitIndex) {
         return switch (suitIndex) {
-            case 1 -> "傲慢";
-            case 2 -> "嫉妒";
-            case 3 -> "愤怒";
-            case 4 -> "懒惰";
-            case 5 -> "贪婪";
-            case 6 -> "暴食";
-            case 7 -> "色欲";
-            default -> "未知";
+            case 1 -> I18n.get(Messages.PRIDE);
+            case 2 -> I18n.get(Messages.ENVY);
+            case 3 -> I18n.get(Messages.WRATH);
+            case 4 -> I18n.get(Messages.SLOTH);
+            case 5 -> I18n.get(Messages.GREED);
+            case 6 -> I18n.get(Messages.GLUTTONY);
+            case 7 -> I18n.get(Messages.LUST);
+            default -> I18n.get(Messages.UNKNOWN);
         };
     }
 
@@ -1278,13 +1278,13 @@ public class GameProcedureControl {
 
     private String cardNameFor(int suitIndex, int value) {
         if (suitIndex == 0) {
-            return "净化-0";
+            return I18n.get(Messages.PURIFICATION_2);
         }
         if (suitIndex == 8) {
-            return "腐化-8";
+            return I18n.get(Messages.CORRUPTION_2);
         }
         if (suitIndex == 9) {
-            return "光环";
+            return I18n.get(Messages.HALO);
         }
         return cardName(suitIndex) + "-" + value;
     }
@@ -1294,19 +1294,19 @@ public class GameProcedureControl {
             finish.run();
             return;
         }
-        scheduleJudgment(playerUuid, targetUuid, "色欲选择", () -> {
+        scheduleJudgment(playerUuid, targetUuid, I18n.get(Messages.LUST_CHOICE), () -> {
             Map<String, String> options = new LinkedHashMap<>();
-            options.put("pass", "什么也不做");
+            options.put("pass", I18n.get(Messages.NOTHING));
             if (getHandSize(playerUuid) > 0 && getHandSize(targetUuid) > 0) {
-                options.put("discard", "双方各弃1张牌");
+                options.put("discard", I18n.get(Messages.BOTH_PLAYERS_DISCARD));
             }
-            promptChoice(targetUuid, "色欲：选择如何响应", options, choice -> {
+            promptChoice(targetUuid, I18n.get(Messages.LUST_CHOOSE_HOW), options, choice -> {
                 if (choice.equals("pass")) {
                     finish.run();
                     return;
                 }
-                promptCardDiscard(playerUuid, "选择弃掉一张牌", first ->
-                        promptCardDiscard(targetUuid, "选择弃掉一张牌", second -> {
+                promptCardDiscard(playerUuid, I18n.get(Messages.CHOOSE_CARD_DISCARD), first ->
+                        promptCardDiscard(targetUuid, I18n.get(Messages.CHOOSE_CARD_DISCARD), second -> {
                             boolean firstLust = first.suitIndex() == 7;
                             boolean secondLust = second.suitIndex() == 7;
                             if (firstLust) {
@@ -1338,7 +1338,7 @@ public class GameProcedureControl {
             playerCards.get(uuid).get(9).add(0);
             haloPublic = false;
             broadcastText(message(PREFIX + "§b" + playerName(uuid)
-                    + " §f将光环拿入手牌"));
+                    + I18n.get(Messages.TOOK_HALO_HAND)));
             return;
         }
         for (UUID player : players) {
@@ -1346,7 +1346,7 @@ public class GameProcedureControl {
                 playerCards.get(player).get(9).remove(0);
                 playerCards.get(uuid).get(9).add(0);
                 broadcastText(message(PREFIX + "§b" + playerName(uuid)
-                        + " §f从 " + playerName(player) + " §f手中夺得光环"));
+                        + I18n.get(Messages.TOOK_RANDOM_CARD) + playerName(player) + I18n.get(Messages.TOOK_HALO_ANOTHER)));
                 return;
             }
         }
@@ -1369,13 +1369,13 @@ public class GameProcedureControl {
         int level = Math.max(0, sinLevels.get(uuid) - 2);
         sinLevels.put(uuid, level);
         broadcastText(message(PREFIX + "§e" + playerName(uuid)
-                + " §f打空了手牌，罪恶值降为 §c" + level));
+                + I18n.get(Messages.EMPTIED_HAND_SIN) + level));
         for (int i = 0; i < level; i++) {
             drawCard(uuid);
         }
         if (count >= 3 || level == 0) {
             phase = GamePhase.GAME_OVER;
-            broadcastText(message(PREFIX + "§a" + playerName(uuid) + " §f获得胜利"));
+            broadcastText(message(PREFIX + "§a" + playerName(uuid) + I18n.get(Messages.WINS_GAME)));
             pendingChoices.clear();
             resolvingEffect = false;
             notifyGameFinished();
