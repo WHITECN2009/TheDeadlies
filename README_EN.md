@@ -16,6 +16,8 @@ After the first launch, set the interface language in `plugins/TheDeadlies/confi
 language: EN # Supported values: ZH_CN (default) or EN
 ```
 
+`plugins/TheDeadlies/language.yml` contains the Chinese and English message text and can be edited to customize the displayed messages.
+
 Build from source:
 
 ```text
